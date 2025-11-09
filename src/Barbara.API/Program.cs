@@ -57,12 +57,16 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// NOTA: Criação de índices desabilitada temporariamente (executar manualmente se necessário)
+// Os índices serão criados automaticamente pelo MongoDB Atlas quando necessário
+/*
 // Create MongoDB indexes on startup
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
     await context.CreateIndexesAsync();
 }
+*/
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

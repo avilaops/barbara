@@ -31,18 +31,19 @@ public class Pedido
     // Itens
     public ICollection<ItemPedido> Itens { get; set; } = new List<ItemPedido>();
     
- // Pagamento
+    // Pagamento
     public Pagamento? Pagamento { get; set; }
     
     // Nota Fiscal
     public NotaFiscal? NotaFiscal { get; set; }
   
     // Transporte
-  public Envio? Envio { get; set; }
+    public Envio? Envio { get; set; }
 }
 
 public enum StatusPedido
 {
+    Pendente = 0,
     AguardandoPagamento = 1,
     PagamentoConfirmado = 2,
     EmSeparacao = 3,

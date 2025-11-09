@@ -4,9 +4,9 @@ public class Produto
 {
     public Guid Id { get; set; }
     public string Nome { get; set; } = string.Empty;
- public string Descricao { get; set; } = string.Empty;
+    public string Descricao { get; set; } = string.Empty;
     public string SKU { get; set; } = string.Empty;
-    public string CodigoBarras { get; set; } = string.Empty;
+ public string CodigoBarras { get; set; } = string.Empty;
     
     public decimal Preco { get; set; }
     public decimal? PrecoPromocional { get; set; }
@@ -23,9 +23,12 @@ public class Produto
     public string? UrlModelo3D { get; set; } // URL do modelo 3D para provador virtual
     
     // Estoque
-public ICollection<EstoqueProduto> Estoque { get; set; } = new List<EstoqueProduto>();
+    public ICollection<EstoqueProduto> Estoque { get; set; } = new List<EstoqueProduto>();
     
+    // Flags
   public bool Ativo { get; set; } = true;
+    public bool Destaque { get; set; } = false; // Produto em destaque na home
+    
     public DateTime DataCadastro { get; set; }
 }
 
