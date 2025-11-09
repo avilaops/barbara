@@ -1,0 +1,12 @@
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Application\bin\Debug\net9.0\Barbara.Application.deps.json
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Application\bin\Debug\net9.0\Barbara.Application.dll
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Application\bin\Debug\net9.0\Barbara.Application.pdb
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Application\obj\Debug\net9.0\Barbara.Application.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Application\obj\Debug\net9.0\Barbara.Application.AssemblyInfoInputs.cache
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Application\obj\Debug\net9.0\Barbara.Application.AssemblyInfo.cs
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Application\obj\Debug\net9.0\Barbara.Application.csproj.CoreCompileInputs.cache
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Application\obj\Debug\net9.0\Barbara.Application.sourcelink.json
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Application\obj\Debug\net9.0\Barbara.Application.dll
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Application\obj\Debug\net9.0\refint\Barbara.Application.dll
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Application\obj\Debug\net9.0\Barbara.Application.pdb
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Application\obj\Debug\net9.0\ref\Barbara.Application.dll

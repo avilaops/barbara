@@ -1,0 +1,182 @@
+using Barbara.Domain.Entities;
+using Barbara.Infrastructure.Data;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace Barbara.API.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class CarrinhoController : ControllerBase
+{
+    private readonly BarbaraDbContext _context;
+
+ public CarrinhoController(BarbaraDbContext context)
+    {
+        _context = context;
+    }
+
+  [HttpGet("{clienteId}")]
+    public async Task<ActionResult<CarrinhoDto>> GetCarrinho(Guid clienteId)
+    {
+        // Buscar carrinho em sessão (simplificado - usar Redis em produção)
+     var itensCarrinho = await _context.Set<ItemCarrinho>()
+     .Where(i => i.ClienteId == clienteId)
+    .Include(i => i.Produto)
+         .ThenInclude(p => p.Imagens)
+            .Include(i => i.EstoqueProduto)
+    .ToListAsync();
+
+        var subtotal = itensCarrinho.Sum(i => i.Quantidade * i.PrecoUnitario);
+
+        var carrinho = new CarrinhoDto
+        {
+        ClienteId = clienteId,
+            Itens = itensCarrinho.Select(i => new ItemCarrinhoDto
+            {
+     Id = i.Id,
+         ProdutoId = i.ProdutoId,
+         NomeProduto = i.Produto.Nome,
+ ImagemUrl = i.Produto.Imagens.FirstOrDefault(img => img.Principal)?.Url ?? "",
+                Tamanho = i.EstoqueProduto.Tamanho,
+    Cor = i.EstoqueProduto.Cor,
+    Quantidade = i.Quantidade,
+           PrecoUnitario = i.PrecoUnitario,
+      Subtotal = i.Quantidade * i.PrecoUnitario
+  }).ToList(),
+            Subtotal = subtotal,
+            Total = subtotal // Aplicar descontos/frete depois
+        };
+
+        return Ok(carrinho);
+    }
+
+    [HttpPost("itens")]
+    public async Task<ActionResult> AdicionarItem(AdicionarItemCarrinhoDto dto)
+ {
+        var estoque = await _context.EstoqueProdutos
+     .Include(e => e.Produto)
+ .FirstOrDefaultAsync(e => e.Id == dto.EstoqueProdutoId);
+
+      if (estoque == null)
+      return NotFound("Produto não encontrado");
+
+        if (estoque.Quantidade < dto.Quantidade)
+            return BadRequest("Quantidade indisponível em estoque");
+
+      // Verificar se item já existe no carrinho
+var itemExistente = await _context.Set<ItemCarrinho>()
+ .FirstOrDefaultAsync(i => 
+         i.ClienteId == dto.ClienteId && 
+     i.EstoqueProdutoId == dto.EstoqueProdutoId);
+
+if (itemExistente != null)
+        {
+  itemExistente.Quantidade += dto.Quantidade;
+        }
+    else
+        {
+            var novoItem = new ItemCarrinho
+         {
+       Id = Guid.NewGuid(),
+           ClienteId = dto.ClienteId,
+      ProdutoId = estoque.ProdutoId,
+        EstoqueProdutoId = dto.EstoqueProdutoId,
+   Quantidade = dto.Quantidade,
+  PrecoUnitario = estoque.Produto.PrecoPromocional ?? estoque.Produto.Preco
+ };
+
+  _context.Set<ItemCarrinho>().Add(novoItem);
+        }
+
+        await _context.SaveChangesAsync();
+  return Ok();
+    }
+
+    [HttpPut("itens/{id}")]
+    public async Task<ActionResult> AtualizarQuantidade(Guid id, AtualizarQuantidadeDto dto)
+  {
+        var item = await _context.Set<ItemCarrinho>()
+            .Include(i => i.EstoqueProduto)
+       .FirstOrDefaultAsync(i => i.Id == id);
+
+        if (item == null)
+    return NotFound();
+
+        if (item.EstoqueProduto.Quantidade < dto.Quantidade)
+return BadRequest("Quantidade indisponível");
+
+        item.Quantidade = dto.Quantidade;
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    [HttpDelete("itens/{id}")]
+    public async Task<ActionResult> RemoverItem(Guid id)
+    {
+     var item = await _context.Set<ItemCarrinho>().FindAsync(id);
+        if (item == null)
+   return NotFound();
+
+        _context.Set<ItemCarrinho>().Remove(item);
+        await _context.SaveChangesAsync();
+
+     return NoContent();
+    }
+
+    [HttpDelete("{clienteId}/limpar")]
+    public async Task<ActionResult> LimparCarrinho(Guid clienteId)
+    {
+var itens = await _context.Set<ItemCarrinho>()
+            .Where(i => i.ClienteId == clienteId)
+       .ToListAsync();
+
+        _context.Set<ItemCarrinho>().RemoveRange(itens);
+  await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+}
+
+// Entidade temporária para carrinho (mover para Domain depois)
+public class ItemCarrinho
+{
+    public Guid Id { get; set; }
+    public Guid ClienteId { get; set; }
+    public Guid ProdutoId { get; set; }
+    public Produto Produto { get; set; } = null!;
+    public Guid EstoqueProdutoId { get; set; }
+    public EstoqueProduto EstoqueProduto { get; set; } = null!;
+    public int Quantidade { get; set; }
+    public decimal PrecoUnitario { get; set; }
+}
+
+public record CarrinhoDto
+{
+    public Guid ClienteId { get; set; }
+    public List<ItemCarrinhoDto> Itens { get; set; } = new();
+    public decimal Subtotal { get; set; }
+    public decimal Total { get; set; }
+}
+
+public record ItemCarrinhoDto
+{
+  public Guid Id { get; set; }
+    public Guid ProdutoId { get; set; }
+    public string NomeProduto { get; set; } = string.Empty;
+    public string ImagemUrl { get; set; } = string.Empty;
+    public string Tamanho { get; set; } = string.Empty;
+    public string? Cor { get; set; }
+  public int Quantidade { get; set; }
+  public decimal PrecoUnitario { get; set; }
+    public decimal Subtotal { get; set; }
+}
+
+public record AdicionarItemCarrinhoDto(
+    Guid ClienteId,
+    Guid EstoqueProdutoId,
+    int Quantidade
+);
+
+public record AtualizarQuantidadeDto(int Quantidade);

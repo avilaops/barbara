@@ -1,0 +1,13 @@
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Domain\bin\Debug\net9.0\Barbara.Domain.deps.json
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Domain\bin\Debug\net9.0\Barbara.Domain.dll
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Domain\bin\Debug\net9.0\Barbara.Domain.pdb
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Domain\obj\Debug\net9.0\Barbara.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Domain\obj\Debug\net9.0\Barbara.Domain.AssemblyInfoInputs.cache
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Domain\obj\Debug\net9.0\Barbara.Domain.AssemblyInfo.cs
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Domain\obj\Debug\net9.0\Barbara.Domain.csproj.CoreCompileInputs.cache
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Domain\obj\Debug\net9.0\Barbara.Domain.sourcelink.json
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Domain\obj\Debug\net9.0\Barbara.Domain.dll
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Domain\obj\Debug\net9.0\refint\Barbara.Domain.dll
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Domain\obj\Debug\net9.0\Barbara.Domain.pdb
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Domain\obj\Debug\net9.0\ref\Barbara.Domain.dll
+C:\Users\nicol\source\repos\avilaops\barbara\src\Barbara.Domain\obj\Debug\net9.0\Barbara.Domain.csproj.AssemblyReference.cache

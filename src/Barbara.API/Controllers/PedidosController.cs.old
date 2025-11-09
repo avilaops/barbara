@@ -1,0 +1,392 @@
+using Barbara.API.DTOs;
+using Barbara.Domain.Entities;
+using Barbara.Infrastructure.Data;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace Barbara.API.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class PedidosController : ControllerBase
+{
+    private readonly BarbaraDbContext _context;
+ private readonly ILogger<PedidosController> _logger;
+
+    public PedidosController(BarbaraDbContext context, ILogger<PedidosController> logger)
+    {
+     _context = context;
+_logger = logger;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<PedidoDto>>> GetPedidos(
+   [FromQuery] Guid? clienteId,
+    [FromQuery] string? status,
+        [FromQuery] int pagina = 1,
+        [FromQuery] int tamanhoPagina = 20)
+    {
+      var query = _context.Pedidos
+            .Include(p => p.Cliente)
+            .Include(p => p.EnderecoEntrega)
+       .Include(p => p.Itens)
+    .ThenInclude(i => i.Produto)
+         .ThenInclude(p => p.Imagens)
+       .Include(p => p.Itens)
+         .ThenInclude(i => i.EstoqueProduto)
+            .Include(p => p.Pagamento)
+            .Include(p => p.Envio)
+        .AsQueryable();
+
+if (clienteId.HasValue)
+            query = query.Where(p => p.ClienteId == clienteId.Value);
+
+    if (!string.IsNullOrEmpty(status))
+        {
+            if (Enum.TryParse<StatusPedido>(status, true, out var statusEnum))
+  query = query.Where(p => p.Status == statusEnum);
+   }
+
+        var total = await query.CountAsync();
+        var pedidos = await query
+ .OrderByDescending(p => p.DataPedido)
+        .Skip((pagina - 1) * tamanhoPagina)
+          .Take(tamanhoPagina)
+          .ToListAsync();
+
+     var pedidosDto = pedidos.Select(MapearPedidoParaDto).ToList();
+
+        Response.Headers.Append("X-Total-Count", total.ToString());
+        Response.Headers.Append("X-Page", pagina.ToString());
+
+        return Ok(pedidosDto);
+    }
+
+ [HttpGet("{id}")]
+    public async Task<ActionResult<PedidoDto>> GetPedido(Guid id)
+    {
+        var pedido = await _context.Pedidos
+            .Include(p => p.Cliente)
+    .Include(p => p.EnderecoEntrega)
+            .Include(p => p.Itens)
+            .ThenInclude(i => i.Produto)
+    .ThenInclude(p => p.Imagens)
+            .Include(p => p.Itens)
+       .ThenInclude(i => i.EstoqueProduto)
+ .Include(p => p.Pagamento)
+            .Include(p => p.Envio)
+       .FirstOrDefaultAsync(p => p.Id == id);
+
+      if (pedido == null)
+     return NotFound();
+
+        return Ok(MapearPedidoParaDto(pedido));
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<PedidoDto>> CriarPedido(CriarPedidoDto dto)
+  {
+        using var transaction = await _context.Database.BeginTransactionAsync();
+
+        try
+    {
+            // 1. Validar cliente
+      var cliente = await _context.Clientes.FindAsync(dto.ClienteId);
+      if (cliente == null)
+                return BadRequest("Cliente não encontrado");
+
+            // 2. Validar endereço
+      var endereco = await _context.Enderecos
+    .FirstOrDefaultAsync(e => e.Id == dto.EnderecoEntregaId && e.ClienteId == dto.ClienteId);
+    if (endereco == null)
+          return BadRequest("Endereço de entrega inválido");
+
+         // 3. Validar e calcular itens
+        var itens = new List<ItemPedido>();
+            decimal subtotal = 0;
+
+            foreach (var itemDto in dto.Itens)
+        {
+              var estoque = await _context.EstoqueProdutos
+      .Include(e => e.Produto)
+            .FirstOrDefaultAsync(e => e.Id == itemDto.EstoqueProdutoId);
+
+    if (estoque == null)
+         return BadRequest($"Produto não encontrado: {itemDto.ProdutoId}");
+
+     if (estoque.Quantidade < itemDto.Quantidade)
+           return BadRequest($"Quantidade indisponível para: {estoque.Produto.Nome}");
+
+        var preco = estoque.Produto.PrecoPromocional ?? estoque.Produto.Preco;
+         var subtotalItem = preco * itemDto.Quantidade;
+
+       var item = new ItemPedido
+ {
+          Id = Guid.NewGuid(),
+           ProdutoId = estoque.ProdutoId,
+        EstoqueProdutoId = estoque.Id,
+   Quantidade = itemDto.Quantidade,
+   PrecoUnitario = preco,
+       Subtotal = subtotalItem
+                };
+
+         itens.Add(item);
+          subtotal += subtotalItem;
+
+         // Baixar estoque
+        estoque.Quantidade -= itemDto.Quantidade;
+   }
+
+      // 4. Calcular frete
+            var frete = await CalcularFreteInterno(endereco.CEP, itens);
+
+            // 5. Aplicar desconto (simplificado)
+            decimal desconto = 0;
+    // TODO: Implementar lógica de cupons
+
+ // 6. Criar pedido
+            var numeroPedido = GerarNumeroPedido();
+     var pedido = new Pedido
+    {
+         Id = Guid.NewGuid(),
+                NumeroPedido = numeroPedido,
+      ClienteId = dto.ClienteId,
+      EnderecoEntregaId = dto.EnderecoEntregaId,
+      SubTotal = subtotal,
+     ValorFrete = frete.Valor,
+       Desconto = desconto,
+   Total = subtotal + frete.Valor - desconto,
+                Status = StatusPedido.AguardandoPagamento,
+            DataPedido = DateTime.UtcNow,
+                Itens = itens
+     };
+
+ _context.Pedidos.Add(pedido);
+
+            // 7. Criar pagamento
+ var pagamento = new Pagamento
+{
+   Id = Guid.NewGuid(),
+    PedidoId = pedido.Id,
+           FormaPagamento = (FormaPagamento)dto.FormaPagamento,
+      Status = StatusPagamento.Pendente,
+   Valor = pedido.Total,
+           DataCriacao = DateTime.UtcNow
+          };
+
+ _context.Pagamentos.Add(pagamento);
+
+  // 8. Criar envio
+            var envio = new Envio
+            {
+       Id = Guid.NewGuid(),
+    PedidoId = pedido.Id,
+     Transportadora = frete.Transportadora,
+          ValorFrete = frete.Valor,
+     PrazoEntregaDias = frete.PrazoEntregaDias,
+       Status = StatusEnvio.AguardandoColeta
+            };
+
+            _context.Envios.Add(envio);
+
+      await _context.SaveChangesAsync();
+          await transaction.CommitAsync();
+
+     _logger.LogInformation("Pedido {NumeroPedido} criado para cliente {ClienteId}", numeroPedido, dto.ClienteId);
+
+// Recarregar com includes
+    var pedidoCriado = await _context.Pedidos
+  .Include(p => p.Cliente)
+                .Include(p => p.EnderecoEntrega)
+         .Include(p => p.Itens).ThenInclude(i => i.Produto).ThenInclude(p => p.Imagens)
+                .Include(p => p.Itens).ThenInclude(i => i.EstoqueProduto)
+        .Include(p => p.Pagamento)
+     .Include(p => p.Envio)
+.FirstAsync(p => p.Id == pedido.Id);
+
+            return CreatedAtAction(nameof(GetPedido), new { id = pedido.Id }, MapearPedidoParaDto(pedidoCriado));
+        }
+        catch (Exception ex)
+  {
+            await transaction.RollbackAsync();
+  _logger.LogError(ex, "Erro ao criar pedido para cliente {ClienteId}", dto.ClienteId);
+       return StatusCode(500, "Erro ao processar pedido");
+        }
+    }
+
+[HttpPost("{id}/confirmar-pagamento")]
+ public async Task<ActionResult> ConfirmarPagamento(Guid id, [FromBody] ConfirmarPagamentoDto dto)
+    {
+        var pedido = await _context.Pedidos
+         .Include(p => p.Pagamento)
+     .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (pedido == null)
+    return NotFound();
+
+   if (pedido.Pagamento == null)
+            return BadRequest("Pagamento não encontrado");
+
+ pedido.Pagamento.Status = StatusPagamento.Aprovado;
+        pedido.Pagamento.TransacaoId = dto.TransacaoId;
+        pedido.Pagamento.DataConfirmacao = DateTime.UtcNow;
+
+   pedido.Status = StatusPedido.PagamentoConfirmado;
+        pedido.DataPagamento = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+     _logger.LogInformation("Pagamento confirmado para pedido {PedidoId}", id);
+
+      return NoContent();
+    }
+
+    [HttpPost("{id}/cancelar")]
+    public async Task<ActionResult> CancelarPedido(Guid id)
+    {
+    var pedido = await _context.Pedidos
+     .Include(p => p.Itens).ThenInclude(i => i.EstoqueProduto)
+  .Include(p => p.Pagamento)
+    .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (pedido == null)
+   return NotFound();
+
+        if (pedido.Status == StatusPedido.Entregue)
+      return BadRequest("Pedido já foi entregue e não pode ser cancelado");
+
+        // Devolver estoque
+        foreach (var item in pedido.Itens)
+        {
+  item.EstoqueProduto.Quantidade += item.Quantidade;
+  }
+
+        pedido.Status = StatusPedido.Cancelado;
+
+        if (pedido.Pagamento != null && pedido.Pagamento.Status == StatusPagamento.Aprovado)
+        {
+            pedido.Pagamento.Status = StatusPagamento.Estornado;
+     // TODO: Integrar com gateway de pagamento para estorno real
+        }
+
+        await _context.SaveChangesAsync();
+
+    _logger.LogInformation("Pedido {PedidoId} cancelado", id);
+
+        return NoContent();
+    }
+
+    [HttpPost("calcular-frete")]
+    public async Task<ActionResult<FreteResultDto>> CalcularFrete(CalcularFreteDto dto)
+    {
+    // Buscar produtos para calcular peso/volume
+        var produtoIds = dto.Itens.Select(i => i.ProdutoId).ToList();
+        var produtos = await _context.Produtos
+      .Where(p => produtoIds.Contains(p.Id))
+ .ToListAsync();
+
+      var itens = dto.Itens.Select(i =>
+    {
+        var produto = produtos.First(p => p.Id == i.ProdutoId);
+            return new ItemPedido
+            {
+                ProdutoId = produto.Id,
+      Quantidade = i.Quantidade
+     };
+        }).ToList();
+
+        var frete = await CalcularFreteInterno(dto.CEPDestino, itens);
+        return Ok(frete);
+    }
+
+  // Métodos privados
+    private PedidoDto MapearPedidoParaDto(Pedido pedido)
+    {
+ return new PedidoDto
+        {
+            Id = pedido.Id,
+            NumeroPedido = pedido.NumeroPedido,
+            ClienteId = pedido.ClienteId,
+     NomeCliente = pedido.Cliente.Nome,
+    EnderecoEntrega = new EnderecoEntregaDto
+  {
+      CEP = pedido.EnderecoEntrega.CEP,
+      Logradouro = pedido.EnderecoEntrega.Logradouro,
+    Numero = pedido.EnderecoEntrega.Numero,
+    Complemento = pedido.EnderecoEntrega.Complemento,
+    Bairro = pedido.EnderecoEntrega.Bairro,
+    Cidade = pedido.EnderecoEntrega.Cidade,
+  Estado = pedido.EnderecoEntrega.Estado
+            },
+    Itens = pedido.Itens.Select(i => new ItemPedidoDto
+          {
+                Id = i.Id,
+   ProdutoId = i.ProdutoId,
+       NomeProduto = i.Produto.Nome,
+        ImagemUrl = i.Produto.Imagens.FirstOrDefault(img => img.Principal)?.Url ?? "",
+           Tamanho = i.EstoqueProduto.Tamanho,
+     Cor = i.EstoqueProduto.Cor,
+      Quantidade = i.Quantidade,
+ PrecoUnitario = i.PrecoUnitario,
+       Subtotal = i.Subtotal
+   }).ToList(),
+            SubTotal = pedido.SubTotal,
+            ValorFrete = pedido.ValorFrete,
+Desconto = pedido.Desconto,
+            Total = pedido.Total,
+      Status = pedido.Status.ToString(),
+            DataPedido = pedido.DataPedido,
+    DataPagamento = pedido.DataPagamento,
+  DataEnvio = pedido.DataEnvio,
+            DataEntrega = pedido.DataEntrega,
+       Pagamento = pedido.Pagamento != null ? new PagamentoDto
+        {
+   Id = pedido.Pagamento.Id,
+         FormaPagamento = pedido.Pagamento.FormaPagamento.ToString(),
+          Status = pedido.Pagamento.Status.ToString(),
+     Valor = pedido.Pagamento.Valor,
+       TransacaoId = pedido.Pagamento.TransacaoId,
+  DataConfirmacao = pedido.Pagamento.DataConfirmacao
+    } : null,
+        CodigoRastreio = pedido.Envio?.CodigoRastreio
+  };
+    }
+
+ private string GerarNumeroPedido()
+    {
+        var ano = DateTime.Now.Year.ToString()[2..];
+ var mes = DateTime.Now.Month.ToString("00");
+        var dia = DateTime.Now.Day.ToString("00");
+        var random = new Random().Next(1000, 9999);
+
+        return $"BAR{ano}{mes}{dia}{random}";
+    }
+
+    private async Task<FreteResultDto> CalcularFreteInterno(string cepDestino, List<ItemPedido> itens)
+    {
+      // Simulação simples de frete
+        // TODO: Integrar com API real (Correios, Melhor Envio, etc)
+
+        await Task.CompletedTask; // Simular chamada assíncrona
+
+ var totalItens = itens.Sum(i => i.Quantidade);
+        var pesoEstimado = totalItens * 0.5m; // 500g por item
+
+   // Frete base + taxa por peso
+        var valorBase = 15.00m;
+var taxaPorKg = 5.00m;
+        var valorFrete = valorBase + (pesoEstimado * taxaPorKg);
+
+    // Prazo base + 1 dia a cada 2 itens
+        var prazo = 7 + (totalItens / 2);
+
+        return new FreteResultDto
+    {
+    Valor = valorFrete,
+            PrazoEntregaDias = prazo,
+            Transportadora = "Correios - PAC"
+        };
+    }
+}
+
+public record ConfirmarPagamentoDto(string TransacaoId, string? Gateway);
