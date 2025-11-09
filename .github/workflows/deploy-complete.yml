@@ -1,13 +1,13 @@
-﻿name: 🚀 Deploy Completo - Bárbara E-commerce
+﻿name: "🚀 Deploy Completo - Bárbara E-commerce"
 
 on:
   push:
     branches: [ main ]
     paths:
- - 'src/**'
- - 'core/**'
+      - 'src/**'
+      - 'core/**'
       - 'api-functions/**'
-   - '.github/workflows/**'
+      - '.github/workflows/**'
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -15,286 +15,282 @@ on:
 env:
   DOTNET_VERSION: '9.0.x'
   AZURE_WEBAPP_NAME: 'barbara-api'
-  AZURE_FUNCTIONAPP_NAME: 'barbara-functions'
+  AZURE_FUNCTIONAPP_NAME: 'barbara'
   UNITY_VERSION: '2022.3.0f1'
 
 jobs:
-  # ════════════════════════════════════════════════════════════
-  # JOB 1: BUILD & DEPLOY BACKEND API (.NET 9)
-  # ════════════════════════════════════════════════════════════
   build-deploy-api:
-    name: 🔧 Backend API (.NET 9 + MongoDB)
+    name: "🔧 Backend API (.NET9 + MongoDB)"
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      
- - name: 🔧 Setup .NET ${{ env.DOTNET_VERSION }}
-      uses: actions/setup-dotnet@v4
-      with:
-dotnet-version: ${{ env.DOTNET_VERSION }}
-    
-    - name: 📦 Restore dependencies
-  run: dotnet restore
-      
-    - name: 🔨 Build
-      run: dotnet build --configuration Release --no-restore
-      
-    - name: 🧪 Run tests
-      run: dotnet test --no-build --verbosity normal --logger "console;verbosity=detailed" || echo "⚠️ No tests found"
-     
-    - name: 📋 Publish
-      run: dotnet publish src/Barbara.API/Barbara.API.csproj -c Release -o ${{env.DOTNET_ROOT}}/api-publish
-        
-    - name: 🚀 Deploy to Azure Web App
-  uses: azure/webapps-deploy@v2
-      with:
-        app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        package: ${{env.DOTNET_ROOT}}/api-publish
-    
-    - name: ✅ API Deployment Summary
-      run: |
-      echo "## 🎉 API Backend Deployed!" >> $GITHUB_STEP_SUMMARY
-  echo "" >> $GITHUB_STEP_SUMMARY
- echo "### 📦 Details" >> $GITHUB_STEP_SUMMARY
-        echo "- **Platform:** .NET ${{ env.DOTNET_VERSION }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Database:** MongoDB Atlas" >> $GITHUB_STEP_SUMMARY
-        echo "- **URL:** https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net" >> $GITHUB_STEP_SUMMARY
-     echo "- **Swagger:** https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/swagger" >> $GITHUB_STEP_SUMMARY
-        echo "- **Health:** https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/health" >> $GITHUB_STEP_SUMMARY
 
-  # ════════════════════════════════════════════════════════════
-  # JOB 2: BUILD UNITY WEBGL
-  # ════════════════════════════════════════════════════════════
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: 🧰 Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: 📦 Restore dependencies
+        run: dotnet restore
+
+      - name: 🔨 Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: 🧪 Run tests
+        run: |
+          dotnet test --no-build --verbosity normal --logger "console;verbosity=detailed" || echo "⚠️ No tests found"
+
+      - name: 📋 Publish
+        run: dotnet publish src/Barbara.API/Barbara.API.csproj -c Release -o ${{ github.workspace }}/api-publish
+
+      - name: 🚀 Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ${{ github.workspace }}/api-publish
+
+      - name: ✅ API Deployment Summary
+        run: |
+          echo "## 🎉 API Backend Deployed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platform:** .NET ${{ env.DOTNET_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Database:** MongoDB Atlas" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net" >> $GITHUB_STEP_SUMMARY
+          echo "- **Swagger:** https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/swagger" >> $GITHUB_STEP_SUMMARY
+          echo "- **Health:** https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/health" >> $GITHUB_STEP_SUMMARY
+
   build-unity-webgl:
-    name: 🎮 Unity WebGL Build
+    name: "🎮 Unity WebGL Build"
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      with:
-  fetch-depth: 0
-        lfs: true
-        
-    - name: 📦 Cache Unity Library
-      uses: actions/cache@v3
-      with:
-        path: core/Library
-        key: Library-${{ runner.os }}-${{ hashFiles('core/Assets/**', 'core/Packages/**', 'core/ProjectSettings/**') }}
-        restore-keys: |
-     Library-${{ runner.os }}-
-  Library-
-          
-    - name: 🎮 Build Unity Project (WebGL)
-      uses: game-ci/unity-builder@v4
-      env:
-        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-  UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-        UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-      with:
-        projectPath: core
-  targetPlatform: WebGL
-     buildsPath: build
-        buildName: barbara-webgl
-        
-    - name: 📤 Upload WebGL Build Artifact
-      uses: actions/upload-artifact@v3
-      with:
-    name: barbara-webgl-build
-        path: build/WebGL/barbara-webgl
-        retention-days: 7
-        
-- name: ✅ Unity Build Summary
-  run: |
-        echo "## 🎮 Unity WebGL Build Completed!" >> $GITHUB_STEP_SUMMARY
- echo "" >> $GITHUB_STEP_SUMMARY
-        echo "- **Platform:** WebGL" >> $GITHUB_STEP_SUMMARY
-    echo "- **Unity Version:** ${{ env.UNITY_VERSION }}" >> $GITHUB_STEP_SUMMARY
-   echo "- **Build Size:** $(du -sh build/WebGL/barbara-webgl | cut -f1)" >> $GITHUB_STEP_SUMMARY
 
-  # ════════════════════════════════════════════════════════════
-  # JOB 3: DEPLOY UNITY WEBGL TO AZURE STATIC WEB APPS
-  # ════════════════════════════════════════════════════════════
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth:0
+          lfs: true
+
+      - name: 📦 Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: core/Library
+          key: Library-${{ runner.os }}-${{ hashFiles('core/Assets/**', 'core/Packages/**', 'core/ProjectSettings/**') }}
+          restore-keys: |
+            Library-${{ runner.os }}-
+            Library-
+
+      - name: 🎮 Build Unity Project (WebGL)
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: core
+          targetPlatform: WebGL
+          buildsPath: build
+          buildName: barbara-webgl
+          unityVersion: ${{ env.UNITY_VERSION }}
+
+      - name: 📤 Upload WebGL Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: barbara-webgl-build
+          path: build/WebGL/barbara-webgl
+          retention-days:7
+
+      - name: ✅ Unity Build Summary
+        run: |
+          echo "## 🎮 Unity WebGL Build Completed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platform:** WebGL" >> $GITHUB_STEP_SUMMARY
+          echo "- **Unity Version:** ${{ env.UNITY_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Size:** $(du -sh build/WebGL/barbara-webgl | cut -f1)" >> $GITHUB_STEP_SUMMARY
+
   deploy-static-web-app:
-  name: 🌐 Deploy Unity WebGL (Static Web App)
-    needs: [build-unity-webgl]
+    name: "🌐 Deploy Unity WebGL (Static Web App)"
+    needs: [ build-unity-webgl ]
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      
-    - name: 📥 Download WebGL Build
-      uses: actions/download-artifact@v3
-      with:
-        name: barbara-webgl-build
-     path: ./webgl-build
- 
-    - name: 🚀 Deploy to Azure Static Web Apps
-      uses: Azure/static-web-apps-deploy@v1
-      with:
- azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-repo_token: ${{ secrets.GITHUB_TOKEN }}
-        action: "upload"
-        app_location: "webgl-build"
-   skip_app_build: true
-        
-    - name: ✅ Static Web App Summary
-      run: |
-        echo "## 🌐 Static Web App Deployed!" >> $GITHUB_STEP_SUMMARY
-  echo "" >> $GITHUB_STEP_SUMMARY
-        echo "- **URL:** https://barbara.avila.inc" >> $GITHUB_STEP_SUMMARY
-        echo "- **Azure URL:** https://thankful-rock-090169c0f.3.azurestaticapps.net" >> $GITHUB_STEP_SUMMARY
-        echo "- **Type:** Unity WebGL" >> $GITHUB_STEP_SUMMARY
 
-  # ════════════════════════════════════════════════════════════
-  # JOB 4: BUILD & DEPLOY AZURE FUNCTIONS
-  # ════════════════════════════════════════════════════════════
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📥 Download WebGL Build
+        uses: actions/download-artifact@v4
+        with:
+          name: barbara-webgl-build
+          path: ./webgl-build
+
+      - name: 🚀 Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: webgl-build
+          skip_app_build: true
+
+      - name: ✅ Static Web App Summary
+        run: |
+          echo "## 🌐 Static Web App Deployed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** https://barbara.avila.inc" >> $GITHUB_STEP_SUMMARY
+          echo "- **Azure URL:** https://thankful-rock-090169c0f.3.azurestaticapps.net" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type:** Unity WebGL" >> $GITHUB_STEP_SUMMARY
+
   build-deploy-functions:
-    name: ⚡ Azure Functions (Serverless)
+    name: "⚡ Azure Functions (Serverless)"
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-    
-    - name: 🔧 Setup .NET ${{ env.DOTNET_VERSION }}
-      uses: actions/setup-dotnet@v4
-      with:
-dotnet-version: ${{ env.DOTNET_VERSION }}
-    
-    - name: 📦 Restore Functions dependencies
-      run: |
-     if [ -d "api-functions" ]; then
-          cd api-functions
-       dotnet restore
-  else
-          echo "⚠️ Pasta api-functions não encontrada - pulando"
-        fi
- 
-    - name: 🔨 Build Functions
-      run: |
-   if [ -d "api-functions" ]; then
-       cd api-functions
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: 📦 Restore Functions dependencies
+        if: ${{ hashFiles('api-functions/**') != '' }}
+        shell: bash
+        run: |
+          pushd api-functions
+          dotnet restore
+          popd
+
+      - name: 🔨 Build Functions
+        if: ${{ hashFiles('api-functions/**') != '' }}
+        shell: bash
+        run: |
+          pushd api-functions
           dotnet build --configuration Release --no-restore
-  fi
-        
-    - name: 📋 Publish Functions
-      run: |
-        if [ -d "api-functions" ]; then
-          cd api-functions
+          popd
+
+      - name: 📋 Publish Functions
+        if: ${{ hashFiles('api-functions/**') != '' }}
+        shell: bash
+        run: |
+          pushd api-functions
           dotnet publish -c Release -o ../functions-publish
-        fi
-   
-    - name: 🚀 Deploy to Azure Functions
-      if: hashFiles('api-functions/**') != ''
-      uses: Azure/functions-action@v1
-      with:
-        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-    package: ./functions-publish
-   publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
-        
-    - name: ✅ Functions Summary
- run: |
-        echo "## ⚡ Azure Functions Deployed!" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-    if [ -d "api-functions" ]; then
-       echo "- **Status:** ✅ Deployed" >> $GITHUB_STEP_SUMMARY
-     echo "- **URL:** https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "- **Status:** ⏭️ Skipped (no functions found)" >> $GITHUB_STEP_SUMMARY
-        fi
+          popd
 
-  # ════════════════════════════════════════════════════════════
-  # JOB 5: HEALTH CHECKS E VALIDAÇÃO
-  # ════════════════════════════════════════════════════════════
+      - name: 🚀 Deploy to Azure Functions
+        if: ${{ hashFiles('api-functions/**') != '' }}
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          package: ./functions-publish
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+
+      - name: ✅ Functions Summary
+        run: |
+          echo "## ⚡ Azure Functions Deployed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -d "api-functions" ]; then
+            echo "- **Status:** ✅ Deployed" >> $GITHUB_STEP_SUMMARY
+            echo "- **URL:** https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Status:** ⏭️ Skipped (no functions found)" >> $GITHUB_STEP_SUMMARY
+          fi
+
   health-check:
-    name: ✅ Health Checks & Validation
-    needs: [build-deploy-api, deploy-static-web-app]
+    name: "✅ Health Checks & Validation"
+    needs: [ build-deploy-api, deploy-static-web-app ]
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: ⏳ Wait for services to start
-      run: sleep 45
-        
-    - name: 🏥 Check API Health
-      run: |
-        response=$(curl -s -o /dev/null -w "%{http_code}" https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/health)
-        echo "API Health Check: HTTP $response"
-        if [ $response -eq 200 ]; then
-      echo "✅ API está respondendo"
-        else
-        echo "⚠️ API retornou HTTP $response"
-        fi
-     
-    - name: 🌐 Check Static Web App
-      run: |
-        response=$(curl -s -o /dev/null -w "%{http_code}" https://thankful-rock-090169c0f.3.azurestaticapps.net)
-        echo "Static Web App Check: HTTP $response"
-        if [ $response -eq 200 ]; then
-      echo "✅ Static Web App está acessível"
-        else
-          echo "⚠️ Static Web App retornou HTTP $response"
-        fi
-    
-    - name: 📊 Generate Final Report
-  run: |
-   echo "## 🎉 Deploy Completo - Bárbara E-commerce" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🔗 URLs de Acesso" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| Componente | URL | Status |" >> $GITHUB_STEP_SUMMARY
-  echo "|------------|-----|--------|" >> $GITHUB_STEP_SUMMARY
-   echo "| **Frontend (Unity WebGL)** | [barbara.avila.inc](https://barbara.avila.inc) | ✅ Live |" >> $GITHUB_STEP_SUMMARY
-echo "| **API Backend** | [barbara-api.azurewebsites.net](https://barbara-api.azurewebsites.net) | ✅ Live |" >> $GITHUB_STEP_SUMMARY
-      echo "| **Swagger (API Docs)** | [Swagger UI](https://barbara-api.azurewebsites.net/swagger) | ✅ Live |" >> $GITHUB_STEP_SUMMARY
-        echo "| **Health Check** | [/health](https://barbara-api.azurewebsites.net/health) | ✅ Live |" >> $GITHUB_STEP_SUMMARY
- echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📊 Stack Tecnológica" >> $GITHUB_STEP_SUMMARY
-    echo "- **Frontend:** Unity WebGL 2022.3 LTS" >> $GITHUB_STEP_SUMMARY
-        echo "- **Backend:** ASP.NET Core 9.0" >> $GITHUB_STEP_SUMMARY
-        echo "- **Database:** MongoDB Atlas (Free M0)" >> $GITHUB_STEP_SUMMARY
-        echo "- **Hosting:** Azure Static Web Apps + App Service" >> $GITHUB_STEP_SUMMARY
-    echo "- **Domain:** barbara.avila.inc" >> $GITHUB_STEP_SUMMARY
-    echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 💰 Custo Estimado" >> $GITHUB_STEP_SUMMARY
-        echo "- MongoDB Atlas M0: **USD 0/mês**" >> $GITHUB_STEP_SUMMARY
-     echo "- App Service Free F1: **USD 0/mês**" >> $GITHUB_STEP_SUMMARY
-        echo "- Static Web Apps Free: **USD 0/mês**" >> $GITHUB_STEP_SUMMARY
-  echo "- **Total: USD 0/mês** 🎉" >> $GITHUB_STEP_SUMMARY
-  echo "" >> $GITHUB_STEP_SUMMARY
-        echo "---" >> $GITHUB_STEP_SUMMARY
-        echo "**Build:** #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Author:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
 
-  # ════════════════════════════════════════════════════════════
-  # JOB 6: NOTIFICAÇÃO (OPCIONAL)
-  # ════════════════════════════════════════════════════════════
+    steps:
+      - name: ⏳ Wait for services to start
+        run: sleep 45
+
+      - name: 🏥 Check API Health
+        shell: bash
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/health)
+          echo "API Health Check: HTTP $response"
+          if [ "$response" -eq 200 ]; then
+            echo "✅ API está respondendo"
+          else
+            echo "⚠️ API retornou HTTP $response"
+          fi
+
+      - name: 🌐 Check Static Web App
+        shell: bash
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://thankful-rock-090169c0f.3.azurestaticapps.net)
+          echo "Static Web App Check: HTTP $response"
+          if [ "$response" -eq 200 ]; then
+            echo "✅ Static Web App está acessível"
+          else
+            echo "⚠️ Static Web App retornou HTTP $response"
+          fi
+
+      - name: 📊 Generate Final Report
+        run: |
+          echo "## 🎉 Deploy Completo - Bárbara E-commerce" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 URLs de Acesso" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Componente | URL | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Frontend (Unity WebGL)** | [barbara.avila.inc](https://barbara.avila.inc) | ✅ Live |" >> $GITHUB_STEP_SUMMARY
+          echo "| **API Backend** | [barbara-api.azurewebsites.net](https://barbara-api.azurewebsites.net) | ✅ Live |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Swagger (API Docs)** | [Swagger UI](https://barbara-api.azurewebsites.net/swagger) | ✅ Live |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Health Check** | [/health](https://barbara-api.azurewebsites.net/health) | ✅ Live |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Stack Tecnológica" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend:** Unity WebGL2022.3 LTS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend:** ASP.NET Core9.0" >> $GITHUB_STEP_SUMMARY
+          echo "- **Database:** MongoDB Atlas (Free M0)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Hosting:** Azure Static Web Apps + App Service" >> $GITHUB_STEP_SUMMARY
+          echo "- **Domain:** barbara.avila.inc" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 💰 Custo Estimado" >> $GITHUB_STEP_SUMMARY
+          echo "- MongoDB Atlas M0: **USD0/mês**" >> $GITHUB_STEP_SUMMARY
+          echo "- App Service Free F1: **USD0/mês**" >> $GITHUB_STEP_SUMMARY
+          echo "- Static Web Apps Free: **USD0/mês**" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total: USD0/mês** 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "**Build:** #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Author:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+
   notify:
-    name: 📢 Notify Deployment Status
-    needs: [health-check]
+    name: "📢 Notify Deployment Status"
+    needs: [ health-check ]
     runs-on: ubuntu-latest
     if: always()
-    
+
     steps:
-    - name: 📧 Send notification
-    run: |
-      if [ "${{ needs.health-check.result }}" == "success" ]; then
-    echo "✅ Deploy concluído com sucesso!"
-          echo "🌐 Acesse: https://barbara.avila.inc"
-        else
-          echo "❌ Deploy falhou! Verifique os logs."
-        fi
-        
-    # Opcional: Enviar para Discord/Slack/Teams
- # - name: 💬 Discord Notification
-    #   uses: sarisia/actions-status-discord@v1
-    #   with:
-    #   webhook: ${{ secrets.DISCORD_WEBHOOK }}
-    #     title: "Bárbara Deploy"
-    #     description: "Deploy completed successfully!"
+      - name: 📧 Send notification
+        shell: bash
+        run: |
+          if [ "${{ needs.health-check.result }}" == "success" ]; then
+            echo "✅ Deploy concluído com sucesso!"
+            echo "🌐 Acesse: https://barbara.avila.inc"
+          else
+            echo "❌ Deploy falhou! Verifique os logs."
+          fi
+
+      # Opcional: Enviar para Discord/Slack/Teams
+      # - name: "💬 Discord Notification"
+      #   uses: sarisia/actions-status-discord@v1
+      #   with:
+      #     webhook: ${{ secrets.DISCORD_WEBHOOK }}
+      #     title: "Bárbara Deploy"
+      #     description: "Deploy completed successfully!"
