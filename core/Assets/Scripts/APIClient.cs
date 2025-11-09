@@ -10,7 +10,14 @@ namespace Barbara.Core
     /// </summary>
     public class APIClient : MonoBehaviour
     {
-        [SerializeField] private string baseUrl = "http://localhost:3000";
+        [SerializeField]
+        private string baseUrl =
+#if UNITY_EDITOR
+        "http://localhost:5000"  // Desenvolvimento
+#else
+        "https://barbara-api.azurewebsites.net"  // Produção
+#endif
+;
 
         private static APIClient _instance;
         public static APIClient Instance

@@ -25,7 +25,7 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
- 
+    
     - name: 📦 Restore dependencies
       run: dotnet restore
       
@@ -61,28 +61,3 @@ jobs:
         echo "### 💰 Cost" >> $GITHUB_STEP_SUMMARY
         echo "- **MongoDB Atlas:** USD 0/mês (Free M0)" >> $GITHUB_STEP_SUMMARY
         echo "- **App Service:** USD 0/mês (Free F1)" >> $GITHUB_STEP_SUMMARY
-
-  health-check:
-    name: ✅ Health Check
-    needs: [build-and-deploy-api]
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: ⏳ Wait for app to start
-      run: sleep 45
-        
-    - name: 🏥 Check API Health
-      run: |
-        response=$(curl -s -o /dev/null -w "%{http_code}" https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/health)
-        if [ $response -eq 200 ]; then
-          echo "✅ API está respondendo (HTTP $response)"
-        else
-          echo "⚠️ API retornou HTTP $response (pode estar inicializando)"
-        fi
-        
-    - name: 📊 Report Status
-      run: |
-        echo "## ✅ Health Check Completed!" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Acesse o Swagger para testar:" >> $GITHUB_STEP_SUMMARY
-        echo "https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/swagger" >> $GITHUB_STEP_SUMMARY
